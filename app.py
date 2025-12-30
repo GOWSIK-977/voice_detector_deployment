@@ -3,7 +3,7 @@ import pandas as pd
 import joblib
 
 app = Flask(__name__)
-
+CORS(app)
 # Load trained model
 model = joblib.load("random_forest_model.joblib")
 

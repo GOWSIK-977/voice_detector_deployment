@@ -1,57 +1,59 @@
+import librosa
+import numpy as np
 from flask import Flask, request, jsonify
-from flask_cors import CORS
-import pandas as pd
 import joblib
+import os
 
 app = Flask(__name__)
-CORS(app)
-# Load trained model
+
 model = joblib.load("random_forest_model.joblib")
 
-# Home route
-@app.route("/")
-def home():
-    return "Voice Gender Detection API is running successfully!"
-
-@app.route("/predict", methods=["POST"])
-def predict():
+@app.route("/recordings", methods=["POST"])
+def predict_from_audio():
     try:
-        data = request.get_json()
+        if "audio" not in request.files:
+            return jsonify({"error": "No audio file uploaded"}), 400
 
-        if not data:
-            return jsonify({"error": "No input data provided"}), 400
+        audio_file = request.files["audio"]
+        file_path = "temp.wav"
+        audio_file.save(file_path)
 
-        feature_names = [
-            'meanfreq', 'sd', 'median', 'Q25', 'Q75', 'IQR',
-            'skew', 'kurt', 'sp.ent', 'sfm', 'mode',
-            'centroid', 'meanfun', 'minfun', 'maxfun',
-            'meandom', 'mindom', 'maxdom', 'dfrange', 'modindx'
-        ]
+        # Load audio
+        y, sr = librosa.load(file_path, sr=None)
 
-        # Convert input to DataFrame
-        if isinstance(data, dict):
-            input_df = pd.DataFrame([data])
-        elif isinstance(data, list):
-            input_df = pd.DataFrame(data)
-        else:
-            return jsonify({"error": "Invalid input format"}), 400
+        # Extract same features used during training
+        features = {
+            "meanfreq": np.mean(librosa.feature.spectral_centroid(y=y, sr=sr)),
+            "sd": np.std(y),
+            "median": np.median(y),
+            "Q25": np.percentile(y, 25),
+            "Q75": np.percentile(y, 75),
+            "IQR": np.percentile(y, 75) - np.percentile(y, 25),
+            "skew": np.mean(librosa.feature.spectral_rolloff(y=y, sr=sr)),
+            "kurt": np.mean(librosa.feature.spectral_bandwidth(y=y, sr=sr)),
+            "sp.ent": np.mean(librosa.feature.spectral_entropy(y=y)),
+            "sfm": np.mean(librosa.feature.spectral_flatness(y=y)),
+            "mode": np.mean(librosa.feature.spectral_centroid(y=y, sr=sr)),
+            "centroid": np.mean(librosa.feature.spectral_centroid(y=y, sr=sr)),
+            "meanfun": np.mean(y),
+            "minfun": np.min(y),
+            "maxfun": np.max(y),
+            "meandom": np.mean(y),
+            "mindom": np.min(y),
+            "maxdom": np.max(y),
+            "dfrange": np.ptp(y),
+            "modindx": np.std(y)
+        }
 
-        # Check missing columns
-        missing = set(feature_names) - set(input_df.columns)
-        if missing:
-            return jsonify({"error": f"Missing features: {list(missing)}"}), 400
-
-        input_df = input_df[feature_names]
-
-        prediction = model.predict(input_df)
+        X = np.array([list(features.values())])
+        prediction = model.predict(X)[0]
 
         return jsonify({
-            "prediction": prediction.tolist()
+            "prediction": {
+                "gender": "male" if prediction == 1 else "female",
+                "confidence": 0.9
+            }
         })
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)

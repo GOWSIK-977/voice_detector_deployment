@@ -20,25 +20,23 @@ def predict_from_audio():
         file_path = "temp.wav"
         audio_file.save(file_path)
 
-        # Load audio
         y, sr = librosa.load(file_path, sr=None, mono=True)
 
-        # Feature extraction (SAFE & STABLE)
         features = [
-            np.mean(librosa.feature.spectral_centroid(y=y, sr=sr)),  # meanfreq
-            np.std(y),                                                # sd
-            np.median(y),                                             # median
-            np.percentile(y, 25),                                     # Q25
-            np.percentile(y, 75),                                     # Q75
-            np.percentile(y, 75) - np.percentile(y, 25),              # IQR
-            np.mean(librosa.feature.spectral_rolloff(y=y, sr=sr)),    # rolloff
-            np.mean(librosa.feature.spectral_bandwidth(y=y, sr=sr)),  # bandwidth
-            np.mean(librosa.feature.spectral_flatness(y=y)),          # flatness
-            np.mean(y),                                               # meanfun
-            np.min(y),                                                # minfun
-            np.max(y),                                                # maxfun
-            np.ptp(y),                                                # dfrange
-            np.std(y)                                                 # modindx
+            np.mean(librosa.feature.spectral_centroid(y=y, sr=sr)),
+            np.std(y),
+            np.median(y),
+            np.percentile(y, 25),
+            np.percentile(y, 75),
+            np.percentile(y, 75) - np.percentile(y, 25),
+            np.mean(librosa.feature.spectral_rolloff(y=y, sr=sr)),
+            np.mean(librosa.feature.spectral_bandwidth(y=y, sr=sr)),
+            np.mean(librosa.feature.spectral_flatness(y=y)),
+            np.mean(y),
+            np.min(y),
+            np.max(y),
+            np.ptp(y),
+            np.std(y)
         ]
 
         X = np.array([features])
@@ -56,3 +54,8 @@ def predict_from_audio():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)

@@ -4,6 +4,7 @@ from flask import Flask, request, jsonify
 import joblib
 import os
 from flask_cors import CORS
+from scipy.stats import skew, kurtosis
 
 app = Flask(__name__)
 CORS(app)
@@ -24,18 +25,22 @@ def predict_from_audio():
         # Load audio
         y, sr = librosa.load(file_path, sr=None, mono=True)
 
-        # ---- FEATURE EXTRACTION (MATCH TRAINING DATA EXACTLY) ----
+        # ---- FEATURE EXTRACTION ----
         meanfreq = np.mean(librosa.feature.spectral_centroid(y=y, sr=sr))
         sd = np.std(y)
         median = np.median(y)
         q25 = np.percentile(y, 25)
         q75 = np.percentile(y, 75)
         iqr = q75 - q25
-        skew = np.mean(librosa.feature.spectral_rolloff(y=y, sr=sr))
-        kurt = np.mean(librosa.feature.spectral_bandwidth(y=y, sr=sr))
-        sp_ent = np.mean(librosa.feature.spectral_entropy(y=y))
+        skew_val = skew(y)
+        kurt_val = kurtosis(y)
+
+        # Spectral Entropy manually
+        S = np.abs(librosa.stft(y))**2
+        ps = S / np.sum(S, axis=0, keepdims=True)
+        sp_ent = np.mean(-np.sum(ps * np.log2(ps + 1e-10), axis=0))
+
         sfm = np.mean(librosa.feature.spectral_flatness(y=y))
-        mode = np.mean(librosa.feature.spectral_centroid(y=y, sr=sr))
         centroid = np.mean(librosa.feature.spectral_centroid(y=y, sr=sr))
         meanfun = np.mean(y)
         minfun = np.min(y)
@@ -47,11 +52,10 @@ def predict_from_audio():
         modindx = np.std(y)
 
         features = [[
-            meanfreq, sd, median, q25, q75, iqr, skew, kurt,
-            sp_ent, sfm, mode, centroid,
-            meanfun, minfun, maxfun,
-            meandom, mindom, maxdom,
-            dfrange, modindx
+            meanfreq, sd, median, q25, q75, iqr,
+            skew_val, kurt_val, sp_ent, sfm,
+            centroid, meanfun, minfun, maxfun,
+            meandom, mindom, maxdom, dfrange, modindx
         ]]
 
         prediction = model.predict(features)[0]

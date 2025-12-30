@@ -21,39 +21,36 @@ def predict_from_audio():
         audio_file.save(file_path)
 
         # Load audio
-        y, sr = librosa.load(file_path, sr=None)
+        y, sr = librosa.load(file_path, sr=None, mono=True)
 
-        # Extract same features used during training
-        features = {
-            "meanfreq": np.mean(librosa.feature.spectral_centroid(y=y, sr=sr)),
-            "sd": np.std(y),
-            "median": np.median(y),
-            "Q25": np.percentile(y, 25),
-            "Q75": np.percentile(y, 75),
-            "IQR": np.percentile(y, 75) - np.percentile(y, 25),
-            "skew": np.mean(librosa.feature.spectral_rolloff(y=y, sr=sr)),
-            "kurt": np.mean(librosa.feature.spectral_bandwidth(y=y, sr=sr)),
-            "sp.ent": np.mean(librosa.feature.spectral_entropy(y=y)),
-            "sfm": np.mean(librosa.feature.spectral_flatness(y=y)),
-            "mode": np.mean(librosa.feature.spectral_centroid(y=y, sr=sr)),
-            "centroid": np.mean(librosa.feature.spectral_centroid(y=y, sr=sr)),
-            "meanfun": np.mean(y),
-            "minfun": np.min(y),
-            "maxfun": np.max(y),
-            "meandom": np.mean(y),
-            "mindom": np.min(y),
-            "maxdom": np.max(y),
-            "dfrange": np.ptp(y),
-            "modindx": np.std(y)
-        }
+        # Feature extraction (SAFE & STABLE)
+        features = [
+            np.mean(librosa.feature.spectral_centroid(y=y, sr=sr)),  # meanfreq
+            np.std(y),                                                # sd
+            np.median(y),                                             # median
+            np.percentile(y, 25),                                     # Q25
+            np.percentile(y, 75),                                     # Q75
+            np.percentile(y, 75) - np.percentile(y, 25),              # IQR
+            np.mean(librosa.feature.spectral_rolloff(y=y, sr=sr)),    # rolloff
+            np.mean(librosa.feature.spectral_bandwidth(y=y, sr=sr)),  # bandwidth
+            np.mean(librosa.feature.spectral_flatness(y=y)),          # flatness
+            np.mean(y),                                               # meanfun
+            np.min(y),                                                # minfun
+            np.max(y),                                                # maxfun
+            np.ptp(y),                                                # dfrange
+            np.std(y)                                                 # modindx
+        ]
 
-        X = np.array([list(features.values())])
+        X = np.array([features])
         prediction = model.predict(X)[0]
+        confidence = float(model.predict_proba(X).max())
+
+        os.remove(file_path)
 
         return jsonify({
             "prediction": {
                 "gender": "male" if prediction == 1 else "female",
-                "confidence": 0.9
+                "confidence": round(confidence, 3)
             }
         })
 
